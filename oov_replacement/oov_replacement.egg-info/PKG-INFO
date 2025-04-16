@@ -1,0 +1,9 @@
+Metadata-Version: 2.1
+Name: oov_replacement
+Version: 0.1.0
+Summary: A package for replacing out-of-vocabulary (OOV) words with in-vocabulary (IV) words
+Author: Your Name
+Author-email: your.email@example.com
+Keywords: nlp,oov,text processing
+Requires-Python: >=3.6
+Requires-Dist: nltk>=3.6.0

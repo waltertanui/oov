@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>OOV Word Replacement Validation</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+            color: #333;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+            font-weight: 600;
+        }
+        .container {
+            display: flex;
+            max-width: 1200px;
+            margin: 0 auto;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+            background-color: white;
+        }
+        .column {
+            flex: 50%;
+            padding: 20px;
+        }
+        .column:first-child {
+            border-right: 1px solid #eee;
+        }
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            resize: vertical;
+            font-family: 'Consolas', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            min-height: 300px;
+        }
+        .metrics {
+            margin-top: 30px;
+            background-color: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .metrics h3 {
+            color: #2c3e50;
+            margin-top: 0;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 10px;
+        }
+        .metric-row {
+            display: flex;
+            margin-bottom: 15px;
+            align-items: center;
+            padding: 8px 0;
+        }
+        .metric-row:hover {
+            background-color: #f8f9fa;
+        }
+        .metric-label {
+            flex: 0 0 300px;
+            font-weight: 600;
+            color: #444;
+        }
+        .metric-value {
+            flex: 1;
+        }
+        .metric-value span {
+            font-weight: 600;
+            color: #2980b9;
+        }
+        input[type="number"] {
+            width: 80px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 10px 0;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .loading {
+            display: none;
+            margin-left: 10px;
+            color: #666;
+        }
+        .highlight {
+            animation: highlight 1s ease-in-out;
+        }
+        @keyframes highlight {
+            0% { background-color: #fff; }
+            50% { background-color: #e3f2fd; }
+            100% { background-color: #fff; }
+        }
+        .metric-card {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+        .metric-item {
+            flex: 1;
+            text-align: center;
+            padding: 15px;
+            margin: 0 10px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .metric-item .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #3498db;
+            margin: 10px 0;
+        }
+        .metric-item .label {
+            font-size: 14px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <h1>OOV Word Replacement Validation</h1>
+    
+    <div class="container">
+        <div class="column">
+            <h3>Input Text (with OOV words)</h3>
+            <textarea id="input_text" rows="15" cols="50" placeholder="Enter text with OOV words here..."></textarea>
+            <button id="process_btn">Process Text <span id="process_loading" class="loading">Processing...</span></button>
+        </div>
+        <div class="column">
+            <h3>Output Text (OOV replaced)</h3>
+            <textarea id="output_text" rows="15" cols="50" readonly></textarea>
+        </div>
+    </div>
+    
+    <div class="metrics">
+        <h3>Evaluation Metrics</h3>
+        
+        <div class="metric-row">
+            <div class="metric-label">Total OOV Word Count (A):</div>
+            <div class="metric-value"><span id="total_oov">0</span></div>
+        </div>
+        
+        <div class="metric-row">
+            <div class="metric-label">Manual OOV Word Count (B):</div>
+            <div class="metric-value">
+                <input type="number" id="manual_oov" min="0" value="0">
+            </div>
+        </div>
+        
+        <div class="metric-row">
+            <div class="metric-label">Correct Conversion Count (D):</div>
+            <div class="metric-value">
+                <input type="number" id="correct_conversion" min="0" value="0">
+            </div>
+        </div>
+        
+        <button id="calculate_metrics_btn">Calculate Metrics <span id="metrics_loading" class="loading">Calculating...</span></button>
+        
+        <div class="metric-card">
+            <div class="metric-item">
+                <div class="label">OOV Word Recognition Rate</div>
+                <div class="value" id="recognition_rate">0.00%</div>
+                <div class="description">System detected OOV words / Manual OOV count</div>
+            </div>
+            
+            <div class="metric-item">
+                <div class="label">System OOV Word Replacement Rate</div>
+                <div class="value" id="system_replacement_rate">0.00%</div>
+                <div class="description">Correct replacements / System detected OOV words</div>
+            </div>
+            
+            <div class="metric-item">
+                <div class="label">OOV Word Replacement Rate</div>
+                <div class="value" id="replacement_rate">0.00%</div>
+                <div class="description">Correct replacements / Manual OOV count</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('process_btn').addEventListener('click', function() {
+            const inputText = document.getElementById('input_text').value;
+            const loadingSpan = document.getElementById('process_loading');
+            
+            if (!inputText.trim()) {
+                alert('Please enter some text to process.');
+                return;
+            }
+            
+            // Show loading indicator
+            loadingSpan.style.display = 'inline';
+            
+            // Send the input text to the server for processing
+            fetch('/process', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    'input_text': inputText
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('output_text').value = data.output_text;
+                const totalOovElement = document.getElementById('total_oov');
+                totalOovElement.textContent = data.oov_count;
+                totalOovElement.parentElement.parentElement.classList.add('highlight');
+                setTimeout(() => {
+                    totalOovElement.parentElement.parentElement.classList.remove('highlight');
+                }, 1000);
+                
+                // Hide loading indicator
+                loadingSpan.style.display = 'none';
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while processing the text.');
+                // Hide loading indicator
+                loadingSpan.style.display = 'none';
+            });
+        });
+        
+        document.getElementById('calculate_metrics_btn').addEventListener('click', function() {
+            const systemOovCount = parseInt(document.getElementById('total_oov').textContent);
+            const manualOovCount = parseInt(document.getElementById('manual_oov').value);
+            const correctConversionCount = parseInt(document.getElementById('correct_conversion').value);
+            const loadingSpan = document.getElementById('metrics_loading');
+            
+            if (manualOovCount === 0) {
+                alert('Please enter a value for Manual OOV Word Count.');
+                return;
+            }
+            
+            // Show loading indicator
+            loadingSpan.style.display = 'inline';
+            
+            // Send the metrics data to the server for calculation
+            fetch('/calculate_metrics', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    'system_oov_count': systemOovCount,
+                    'manual_oov_count': manualOovCount,
+                    'correct_conversion_count': correctConversionCount
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('recognition_rate').textContent = data.recognition_rate + '%';
+                document.getElementById('system_replacement_rate').textContent = data.system_replacement_rate + '%';
+                document.getElementById('replacement_rate').textContent = data.replacement_rate + '%';
+                
+                // Highlight the updated metrics
+                document.querySelectorAll('.metric-item').forEach(item => {
+                    item.classList.add('highlight');
+                    setTimeout(() => {
+                        item.classList.remove('highlight');
+                    }, 1000);
+                });
+                
+                // Hide loading indicator
+                loadingSpan.style.display = 'none';
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while calculating metrics.');
+                // Hide loading indicator
+                loadingSpan.style.display = 'none';
+            });
+        });
+    </script>
+</body>
+</html>

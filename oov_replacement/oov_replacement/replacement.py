@@ -59,6 +59,27 @@ try:
     MODEL_PATH = os.path.join(MODEL_DIR, 'hybrid_model')
     TOKENIZER_PATH = os.path.join(MODEL_DIR, 'bert_tokenizer.pkl')
     
+    # BERT Whitening Parameters
+    WHITENING_PARAMS_DIR = os.path.join(MODEL_DIR, 'whitening_params')
+    os.makedirs(WHITENING_PARAMS_DIR, exist_ok=True)
+    BERT_MEAN_PATH = os.path.join(WHITENING_PARAMS_DIR, 'bert_mean.npy')
+    BERT_W_PATH = os.path.join(WHITENING_PARAMS_DIR, 'bert_W.npy')
+
+    bert_mean = None
+    bert_W = None
+
+    try:
+        if os.path.exists(BERT_MEAN_PATH) and os.path.exists(BERT_W_PATH):
+            bert_mean = np.load(BERT_MEAN_PATH)
+            bert_W = np.load(BERT_W_PATH)
+            print("Loaded BERT whitening parameters.")
+        else:
+            print("BERT whitening parameters not found. Whitening will not be applied.")
+    except Exception as e:
+        print(f"Error loading BERT whitening parameters: {e}. Whitening will not be applied.")
+        bert_mean = None
+        bert_W = None
+    
     # Global variables for model and tokenizer
     hybrid_model = None
     bert_tokenizer = None
@@ -69,7 +90,7 @@ try:
         """
         Load the hybrid model if it exists, otherwise create a new one.
         """
-        global hybrid_model, bert_tokenizer
+        global hybrid_model, bert_tokenizer, bert_mean, bert_W
         
         # Try to load the tokenizer
         if os.path.exists(TOKENIZER_PATH):
@@ -114,8 +135,33 @@ try:
             output_shape=lambda input_shapes: (input_shapes[0][0], input_shapes[0][1], 768)
         )([input_ids, attention_mask_input])
         
-        # Pass the BERT embeddings through a Bidirectional LSTM layer
-        lstm_out = layers.Bidirectional(layers.LSTM(64, return_sequences=True))(bert_outputs)
+        # Apply BERT Whitening if parameters are available
+        whitened_outputs = bert_outputs  # Default to original if params not loaded
+        if bert_mean is not None and bert_W is not None:
+            print("Applying BERT whitening layer...")
+            # Convert numpy arrays to TensorFlow constants
+            tf_bert_mean = tf.constant(bert_mean, dtype=tf.float32)
+            tf_bert_W = tf.constant(bert_W, dtype=tf.float32)
+
+            def whiten_layer(embeddings):
+                # Center the embeddings
+                centered_embeddings = embeddings - tf_bert_mean
+                # Apply the transformation matrix
+                whitened = tf.linalg.matmul(centered_embeddings, tf_bert_W)
+                return whitened
+
+            # Get output dimension from W matrix
+            whitening_output_dim = bert_W.shape[1]
+            whitened_outputs = layers.Lambda(
+                whiten_layer,
+                output_shape=lambda input_shape: (input_shape[0], input_shape[1], whitening_output_dim)
+            )(bert_outputs)
+            print(f"Whitening applied. Output dimension: {whitening_output_dim}")
+        else:
+            print("Skipping BERT whitening layer (parameters not available).")
+        
+        # Pass the (potentially whitened) embeddings through a Bidirectional LSTM layer
+        lstm_out = layers.Bidirectional(layers.LSTM(64, return_sequences=True))(whitened_outputs)
         
         # Add a Transformer (MultiHeadAttention) layer
         transformer_out = layers.MultiHeadAttention(num_heads=4, key_dim=64)(lstm_out, lstm_out)
